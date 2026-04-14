@@ -1,0 +1,123 @@
+# ═══════════════════════════════════════════════════════
+# FairWall — Full Stack .gitignore
+# Covers: Python backend + React/TypeScript frontend
+# ═══════════════════════════════════════════════════════
+
+# ── Python ────────────────────────────────────────────
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── ML / Model files ──────────────────────────────────
+*.pkl
+*.pickle
+*.model
+*.h5
+*.pt
+*.pth
+
+# ── Environment / Secrets ─────────────────────────────
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+*.local
+
+# ── Google Cloud / GCP ────────────────────────────────
+service-account.json
+*-service-account.json
+*.json.key
+gcloud/
+.gcloud/
+application_default_credentials.json
+
+# ── Firebase ──────────────────────────────────────────
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebaserc
+
+# ── Demo data (generated, not source) ─────────────────
+demo/hiring_dataset.csv
+demo/*.csv
+
+# ── Node / Frontend ───────────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+build/
+.output/
+.vinxi/
+.tanstack/
+.nitro/
+coverage/
+*.tsbuildinfo
+
+# ── Bun ───────────────────────────────────────────────
+bun.lockb
+
+# ── Vite ──────────────────────────────────────────────
+vite.config.ts.timestamp-*
+
+# ── Wrangler / Cloudflare (Lovable template — not needed for our deploy) ──
+.wrangler/
+.dev.vars
+wrangler.jsonc
+
+# ── Logs ──────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── OS ────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── Editor ────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+*~
+
+# ── Docker ────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── Misc ──────────────────────────────────────────────
+*.zip
+*.tar.gz
+tmp/
+temp/
+.tmp/
