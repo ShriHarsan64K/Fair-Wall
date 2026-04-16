@@ -3,8 +3,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 export type Domain = "hiring" | "lending" | "admissions" | "healthcare";
 
 export interface TrustScoreData {
-  trust_score: number;
-  status: "HEALTHY" | "WARNING" | "CRITICAL";
+  trust_score: number | null;
+  status: string;           // "healthy" | "warning" | "critical" | "warming_up"
   window_size: number;
   min_for_scoring: number;
   is_warming_up: boolean;
@@ -14,7 +14,7 @@ export interface MetricData {
   name: string;
   value: number;
   threshold: number;
-  status: "PASS" | "WARN" | "FAIL";
+  status: string;           // "pass" | "warn" | "fail"
   affected_attribute: string;
   affected_group: string;
 }
@@ -45,30 +45,98 @@ export interface TrustScoreHistory {
   score: number;
 }
 
-function getBaseUrl() {
+function getBaseUrl(): string {
   if (typeof window === "undefined") return "http://localhost:8000";
   return localStorage.getItem("fw_api_url") || "http://localhost:8000";
 }
 
 function getHeaders(): Record<string, string> {
-  const apiKey = typeof window !== "undefined"
-    ? localStorage.getItem("fw_api_key") || "fw-demo-key-2026"
-    : "fw-demo-key-2026";
+  const apiKey =
+    typeof window !== "undefined"
+      ? localStorage.getItem("fw_api_key") || "fw-demo-key-2026"
+      : "fw-demo-key-2026";
   return { "X-API-Key": apiKey, "Content-Type": "application/json" };
 }
 
+// ── Field transformers ────────────────────────────────────────────────────────
+
+/**
+ * Convert backend action/severity → frontend uppercase action label.
+ *
+ * BUG FIXED: previously only checked for word "block" in combined string,
+ * so severity="high" with empty action returned "FLAG" instead of "BLOCK".
+ * Now severity alone correctly maps: high→BLOCK, medium→ADJUST, low→FLAG.
+ */
+function toAction(action: string, severity: string): "FLAG" | "ADJUST" | "BLOCK" {
+  const a = action.toLowerCase();
+  const s = severity.toLowerCase();
+  // Action string takes priority
+  if (a.includes("block"))  return "BLOCK";
+  if (a.includes("adjust")) return "ADJUST";
+  if (a.includes("flag"))   return "FLAG";
+  // Fallback to severity level
+  if (s === "high")   return "BLOCK";
+  if (s === "medium") return "ADJUST";
+  return "FLAG";
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function transformIntervention(raw: any): InterventionEvent {
+  return {
+    id:            raw.intervention_id || raw.id || String(Math.random()),
+    action:        toAction(raw.action || "", raw.severity || ""),
+    prediction_id: raw.prediction_id || "",
+    attribute:     raw.affected_attribute || raw.attribute || "gender",
+    explanation:   raw.explanation || "Bias detected in decision pipeline.",
+    trust_score:   raw.trust_score ?? 0,
+    timestamp:     raw.created_at || raw.timestamp || new Date().toISOString(),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function transformReviewItem(raw: any): ReviewItem {
+  const sensitiveAttrs: Record<string, string> = raw.sensitive_attrs || {};
+  const attrKey   = Object.keys(sensitiveAttrs)[0] || raw.affected_attribute || "gender";
+  const attrValue = sensitiveAttrs[attrKey] || raw.affected_group || "female";
+  return {
+    doc_id:        raw.doc_id || raw.id || String(Math.random()),
+    prediction_id: raw.prediction_id || "",
+    decision:      raw.status === "resolved" ? "RESOLVED" : "REJECTED",
+    attribute:     attrKey,
+    group:         attrValue,
+    score:         raw.trust_score ?? raw.score ?? 0,
+    features:      raw.features || {},
+    sensitive_attrs: sensitiveAttrs,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function transformMetric(raw: any): MetricData {
+  return {
+    name:               raw.name || "",
+    value:              raw.value ?? 0,
+    threshold:          raw.threshold ?? 0.1,
+    status:             (raw.status || "pass").toLowerCase(),
+    affected_attribute: raw.affected_attribute || "",
+    affected_group:     raw.affected_group || "",
+  };
+}
+
+// ── Main hook ─────────────────────────────────────────────────────────────────
+
 export function useFairwall() {
-  const [domain, setDomain] = useState<Domain>("hiring");
-  const [trustScore, setTrustScore] = useState<TrustScoreData | null>(null);
-  const [metrics, setMetrics] = useState<MetricData[]>([]);
+  const [domain, setDomain]             = useState<Domain>("hiring");
+  const [trustScore, setTrustScore]     = useState<TrustScoreData | null>(null);
+  const [metrics, setMetrics]           = useState<MetricData[]>([]);
   const [interventions, setInterventions] = useState<InterventionEvent[]>([]);
-  const [reviewQueue, setReviewQueue] = useState<ReviewItem[]>([]);
+  const [reviewQueue, setReviewQueue]   = useState<ReviewItem[]>([]);
   const [trustHistory, setTrustHistory] = useState<TrustScoreHistory[]>([]);
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationProgress, setSimulationProgress] = useState(0);
-  const [simulationTotal] = useState(60);
-  const [tenantName, setTenantName] = useState("FairWall Demo");
-  const abortRef = useRef<AbortController | null>(null);
+  const [simulationTotal]               = useState(60);
+  const [tenantName, setTenantName]     = useState("FairWall Demo");
+  const abortRef    = useRef<AbortController | null>(null);
+  const predCountRef = useRef(0);
 
   const clearState = useCallback(() => {
     setTrustScore(null);
@@ -76,6 +144,7 @@ export function useFairwall() {
     setInterventions([]);
     setReviewQueue([]);
     setTrustHistory([]);
+    predCountRef.current = 0;
   }, []);
 
   const switchDomain = useCallback((d: Domain) => {
@@ -83,11 +152,10 @@ export function useFairwall() {
     setDomain(d);
   }, [clearState]);
 
-  // Polling
+  // ── Polling ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const baseUrl = getBaseUrl();
     const headers = getHeaders();
-    let predictionCount = 0;
 
     const poll3s = setInterval(async () => {
       try {
@@ -96,23 +164,32 @@ export function useFairwall() {
           fetch(`${baseUrl}/interventions?domain=${domain}&limit=20`, { headers }),
           fetch(`${baseUrl}/metrics?domain=${domain}`, { headers }),
         ]);
+
         if (tsRes.ok) {
           const data = await tsRes.json();
           setTrustScore(data);
-          if (!data.is_warming_up) {
-            predictionCount++;
-            setTrustHistory(prev => [...prev, { prediction: prev.length + 1, score: data.trust_score }]);
+          // Only add a history point when score actually changes value
+          // (avoids flat duplicate lines on every 3s poll tick)
+          if (!data.is_warming_up && data.trust_score !== null) {
+            setTrustHistory(prev => {
+              const lastScore = prev.length > 0 ? prev[prev.length - 1].score : null;
+              if (lastScore === data.trust_score && prev.length > 0) return prev;
+              predCountRef.current += 1;
+              return [...prev, { prediction: predCountRef.current, score: data.trust_score }];
+            });
           }
         }
+
         if (intRes.ok) {
           const data = await intRes.json();
-          setInterventions(data.events || []);
+          setInterventions((data.events || []).map(transformIntervention));
         }
+
         if (metRes.ok) {
           const data = await metRes.json();
-          setMetrics(data.metrics || []);
+          setMetrics((data.metrics || []).map(transformMetric));
         }
-      } catch { /* API not available */ }
+      } catch { /* API not reachable — keep UI stable */ }
     }, 3000);
 
     const poll5s = setInterval(async () => {
@@ -120,14 +197,14 @@ export function useFairwall() {
         const res = await fetch(`${baseUrl}/review-queue?domain=${domain}`, { headers });
         if (res.ok) {
           const data = await res.json();
-          setReviewQueue(data.items || []);
+          setReviewQueue((data.items || []).map(transformReviewItem));
         }
       } catch { /* */ }
     }, 5000);
 
-    // Tenant info on mount
+    // Tenant info on mount / domain change
     fetch(`${baseUrl}/tenant-info`, { headers })
-      .then(r => r.ok ? r.json() : null)
+      .then(r => (r.ok ? r.json() : null))
       .then(d => { if (d?.name) setTenantName(d.name); })
       .catch(() => {});
 
@@ -137,7 +214,7 @@ export function useFairwall() {
     };
   }, [domain]);
 
-  // Load tenant name from localStorage
+  // Load tenant name from localStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("fw_tenant_name");
@@ -145,6 +222,7 @@ export function useFairwall() {
     }
   }, []);
 
+  // ── Simulation ───────────────────────────────────────────────────────────
   const runSimulation = useCallback(async () => {
     if (isSimulating) return;
     setIsSimulating(true);
@@ -154,7 +232,7 @@ export function useFairwall() {
     const baseUrl = getBaseUrl();
     const headers = getHeaders();
 
-    const buildPrediction = (gender: string, prediction: number, confidence: number) => ({
+    const buildPred = (gender: string, prediction: number, confidence: number) => ({
       domain,
       features: { age: 28, skills_score: 0.85, experience: 5, education: "bachelor" },
       sensitive_attrs: { gender },
@@ -163,10 +241,15 @@ export function useFairwall() {
     });
 
     const sequence = [
-      ...Array.from({ length: 15 }, (_, i) => buildPrediction(i % 2 === 0 ? "female" : "male", 1, 0.9)),
-      ...Array.from({ length: 12 }, () => buildPrediction("female", 0, 0.72)),
-      ...Array.from({ length: 8 }, () => buildPrediction("male", 1, 0.85)),
-      ...Array.from({ length: 25 }, () => buildPrediction("female", 0, 0.42)),
+      // Phase 1: Clean baseline (1-15) — balanced, all accepted
+      ...Array.from({ length: 15 }, (_, i) =>
+        buildPred(i % 2 === 0 ? "female" : "male", 1, 0.92)
+      ),
+      // Phase 2: Mild bias (16-35) — women rejected
+      ...Array.from({ length: 12 }, () => buildPred("female", 0, 0.72)),
+      ...Array.from({ length: 8 },  () => buildPred("male",   1, 0.85)),
+      // Phase 3: Severe bias (36-60) — all female rejected, low confidence
+      ...Array.from({ length: 25 }, () => buildPred("female", 0, 0.41)),
     ];
 
     abortRef.current = new AbortController();
@@ -189,18 +272,31 @@ export function useFairwall() {
     setSimulationProgress(0);
   }, [domain, isSimulating, clearState]);
 
+  // ── Resolve ──────────────────────────────────────────────────────────────
   const resolveCase = useCallback(async (docId: string) => {
     const baseUrl = getBaseUrl();
     const headers = getHeaders();
     try {
-      await fetch(`${baseUrl}/resolve`, {
+      const res = await fetch(`${baseUrl}/resolve`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ doc_id: docId, resolved_by: "hr_reviewer", resolution_note: "Manually reviewed" }),
+        body: JSON.stringify({
+          doc_id: docId,
+          resolved_by: "hr_reviewer",
+          resolution_note: "Manually reviewed and processed",
+        }),
       });
+      if (res.ok) {
+        setReviewQueue(prev =>
+          prev.map(item =>
+            item.doc_id === docId ? { ...item, decision: "RESOLVED" as const } : item
+          )
+        );
+      }
     } catch { /* */ }
   }, []);
 
+  // ── What-If Replay ────────────────────────────────────────────────────────
   const runCounterfactual = useCallback(async (
     selectedAttribute: string,
     originalValue: string,
@@ -218,13 +314,30 @@ export function useFairwall() {
         attribute_overrides: { [selectedAttribute]: newValue },
       }),
     });
-    return res.json();
+    const data = await res.json();
+    return {
+      bias_confirmed:        data.bias_confirmed,
+      original_decision:     data.original?.label     || "REJECTED",
+      counterfactual_decision: data.counterfactual?.label || "ACCEPTED",
+      explanation:           data.explanation || "",
+    };
   }, [domain]);
 
   return {
-    domain, switchDomain, trustScore, metrics, interventions,
-    reviewQueue, trustHistory, isSimulating, simulationProgress,
-    simulationTotal, tenantName, setTenantName, runSimulation,
-    resolveCase, runCounterfactual,
+    domain,
+    switchDomain,
+    trustScore,
+    metrics,
+    interventions,
+    reviewQueue,
+    trustHistory,
+    isSimulating,
+    simulationProgress,
+    simulationTotal,
+    tenantName,
+    setTenantName,
+    runSimulation,
+    resolveCase,
+    runCounterfactual,
   };
 }

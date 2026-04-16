@@ -1,33 +1,51 @@
 """
 backend/api/interventions.py
-GET /interventions — real-time intervention event feed for dashboard.
-Segment 3 — Intervention Engine.
+GET /interventions — real-time intervention feed for dashboard.
+Reads from Firestore (production) with in-memory fallback (dev).
 """
 
 import logging
 from typing import Optional
 
 from fastapi import APIRouter, Request, Query
-from fastapi.responses import JSONResponse
 
 from backend.core.firestore_client import get_fs_client
+from backend.core import in_memory_store as mem
 from backend.core.tenant_middleware import check_domain
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _action_label(action: str, severity: str) -> str:
+    a = action.lower()
+    s = severity.lower()
+    if "block"  in a: return "BLOCK"
+    if "adjust" in a: return "ADJUST"
+    if "flag"   in a: return "FLAG"
+    if s == "high":   return "BLOCK"
+    if s == "medium": return "ADJUST"
+    return "FLAG"
+
+
+def _normalise_event(raw: dict) -> dict:
+    return {
+        "id":            raw.get("intervention_id") or raw.get("id") or "",
+        "action":        _action_label(raw.get("action", ""), raw.get("severity", "")),
+        "prediction_id": raw.get("prediction_id", ""),
+        "attribute":     raw.get("affected_attribute") or raw.get("attribute") or "gender",
+        "explanation":   raw.get("explanation") or "Bias detected in decision pipeline.",
+        "trust_score":   raw.get("trust_score") or 0,
+        "timestamp":     raw.get("created_at") or raw.get("timestamp") or "",
+    }
+
+
 @router.get("/interventions")
 async def get_interventions(
     request: Request,
-    domain: Optional[str] = Query(None, description="Filter by domain"),
+    domain: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=100),
 ):
-    """
-    Returns the most recent intervention events for this tenant.
-    Used by the React dashboard InterventionFeed component (polled every 5s).
-    Always scoped to the calling tenant.
-    """
     tenant_id: str = request.state.tenant_id
 
     if domain:
@@ -35,25 +53,27 @@ async def get_interventions(
         if domain_err:
             return domain_err
 
+    raw_events = []
+
+    # Try Firestore first
     try:
         fs = get_fs_client()
-        events = fs.get_intervention_feed(
-            tenant_id=tenant_id,      # REQUIRED — tenant scoped
-            domain=domain,
-            limit=limit,
+        raw_events = fs.get_intervention_feed(
+            tenant_id=tenant_id, domain=domain, limit=limit
         )
-        return {
-            "tenant_id": tenant_id,
-            "domain_filter": domain,
-            "count": len(events),
-            "events": events,
-        }
-    except Exception as e:
-        logger.error("interventions feed error: %s", e)
-        return JSONResponse({"error": "Failed to fetch interventions"}, status_code=500)
+    except Exception:
+        pass
 
+    # Fallback to in-memory store (always populated in dev)
+    if not raw_events:
+        raw_events = mem.get_interventions(
+            tenant_id=tenant_id, domain=domain, limit=limit
+        )
 
-# ── test ──────────────────────────────────────────────────────────────────────
-# After sending biased predictions:
-# curl "http://localhost:8000/interventions?domain=hiring" -H "X-API-Key: fw-demo-key-2026"
-# curl "http://localhost:8000/interventions?domain=hiring&limit=5" -H "X-API-Key: fw-demo-key-2026"
+    events = [_normalise_event(e) for e in raw_events]
+    return {
+        "tenant_id":     tenant_id,
+        "domain_filter": domain,
+        "count":         len(events),
+        "events":        events,
+    }

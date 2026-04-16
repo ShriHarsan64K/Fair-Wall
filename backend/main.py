@@ -2,7 +2,7 @@
 backend/main.py
 FastAPI application entry point.
 Registers TenantMiddleware, mounts all routers, exposes /health.
-Segment 1 — Foundation.
+Segments 1-4 complete. Segment 6 adds simulate_router.
 """
 
 import logging
@@ -40,14 +40,11 @@ _app_state: dict = {}
 async def lifespan(app: FastAPI):
     """Load domain profiles once at startup; clean up on shutdown."""
     logger.info("FairWall starting up...")
-
     profiles_dir = Path(__file__).parent / "profiles"
     profiles = load_all_profiles(profiles_dir)
     _app_state["profiles"] = profiles
     logger.info("Loaded %d domain profiles: %s", len(profiles), list(profiles.keys()))
-
-    yield  # app runs here
-
+    yield
     logger.info("FairWall shutting down.")
     _app_state.clear()
 
@@ -62,46 +59,36 @@ app = FastAPI(
 
 # ── middleware ─────────────────────────────────────────────────────────────────
 app.add_middleware(TenantMiddleware)
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],      # tighten in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # ── routers ───────────────────────────────────────────────────────────────────
-app.include_router(predict_router, tags=["Predictions"])
-app.include_router(metrics_router, tags=["Metrics"])
-app.include_router(review_router, tags=["Review Queue"])
-app.include_router(interventions_router, tags=["Interventions"])
-app.include_router(explain_router, tags=["Explainability"])
-app.include_router(replay_router, tags=["What-If Replay"])
-# Segment 6 will add: simulate_router
-# Segment 6 will add: simulate_router
-# Segment 6 will add: simulate_router
+app.include_router(predict_router,      tags=["Predictions"])
+app.include_router(metrics_router,      tags=["Metrics"])
+app.include_router(review_router,       tags=["Review Queue"])
+app.include_router(interventions_router,tags=["Interventions"])
+app.include_router(explain_router,      tags=["Explainability"])
+app.include_router(replay_router,       tags=["What-If Replay"])
+# Segment 6 adds: simulate_router
 
 
 # ── health (no API key required) ──────────────────────────────────────────────
 @app.get("/health", tags=["System"])
 async def health():
-    """Public health check — no API key required. Used by Cloud Run health probes."""
-    loaded_domains = list(_app_state.get("profiles", {}).keys())
+    """Public health check — no auth needed. Used by Cloud Run probes."""
     return {
         "status": "ok",
         "version": "1.2.0",
-        "loaded_domains": loaded_domains,
-        "segment": 1,
+        "loaded_domains": list(_app_state.get("profiles", {}).keys()),
+        "segment": 4,
     }
 
 
 def get_profiles() -> dict:
-    """Helper used by API endpoints to access loaded profiles from app state."""
+    """Helper used by API endpoints to access loaded profiles."""
     return _app_state.get("profiles", {})
-
-
-# ── test ──────────────────────────────────────────────────────────────────────
-# uvicorn backend.main:app --reload --port 8000
-# curl http://localhost:8000/health
-# curl http://localhost:8000/docs
