@@ -1,8 +1,8 @@
 """
 backend/main.py
-FastAPI application entry point.
+FastAPI application entry point — Segments 1-6 complete.
 Registers TenantMiddleware, mounts all routers, exposes /health.
-Segments 1-4 complete. Segment 6 adds simulate_router.
+Serves React frontend as static files from /app/dist/client.
 """
 
 import logging
@@ -11,17 +11,20 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.core.tenant_middleware import TenantMiddleware
 from backend.core.profile_loader import load_all_profiles
-from backend.api.predict import router as predict_router
-from backend.api.metrics import router as metrics_router
-from backend.api.review import router as review_router
+from backend.api.predict      import router as predict_router
+from backend.api.metrics      import router as metrics_router
+from backend.api.review       import router as review_router
 from backend.api.interventions import router as interventions_router
-from backend.api.explain import router as explain_router
-from backend.api.replay import router as replay_router
+from backend.api.explain      import router as explain_router
+from backend.api.replay       import router as replay_router
+from backend.api.simulate     import router as simulate_router
 
 # ── env + logging ─────────────────────────────────────────────────────────────
 load_dotenv(Path(__file__).parent / ".env")
@@ -32,13 +35,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ── app state shared across requests ──────────────────────────────────────────
+# ── app state ──────────────────────────────────────────────────────────────────
 _app_state: dict = {}
+
+DIST_DIR = Path("/app/dist/client")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load domain profiles once at startup; clean up on shutdown."""
     logger.info("FairWall starting up...")
     profiles_dir = Path(__file__).parent / "profiles"
     profiles = load_all_profiles(profiles_dir)
@@ -52,7 +56,7 @@ async def lifespan(app: FastAPI):
 # ── app ────────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="FairWall — AI Fairness Firewall",
-    description="Real-time fairness middleware that intercepts biased AI decisions before they reach users.",
+    description="Real-time fairness middleware that intercepts biased AI decisions before users.",
     version="1.2.0",
     lifespan=lifespan,
 )
@@ -67,28 +71,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── routers ───────────────────────────────────────────────────────────────────
-app.include_router(predict_router,      tags=["Predictions"])
-app.include_router(metrics_router,      tags=["Metrics"])
-app.include_router(review_router,       tags=["Review Queue"])
-app.include_router(interventions_router,tags=["Interventions"])
-app.include_router(explain_router,      tags=["Explainability"])
-app.include_router(replay_router,       tags=["What-If Replay"])
-# Segment 6 adds: simulate_router
+# ── API routers ───────────────────────────────────────────────────────────────
+app.include_router(predict_router,       tags=["Predictions"])
+app.include_router(metrics_router,       tags=["Metrics"])
+app.include_router(review_router,        tags=["Review Queue"])
+app.include_router(interventions_router, tags=["Interventions"])
+app.include_router(explain_router,       tags=["Explainability"])
+app.include_router(replay_router,        tags=["What-If Replay"])
+app.include_router(simulate_router,      tags=["Demo Simulator"])
 
 
-# ── health (no API key required) ──────────────────────────────────────────────
+# ── health ────────────────────────────────────────────────────────────────────
 @app.get("/health", tags=["System"])
 async def health():
-    """Public health check — no auth needed. Used by Cloud Run probes."""
     return {
-        "status": "ok",
-        "version": "1.2.0",
+        "status":         "ok",
+        "version":        "1.2.0",
         "loaded_domains": list(_app_state.get("profiles", {}).keys()),
-        "segment": 4,
+        "segment":        6,
     }
 
 
+# ── Static frontend (React build) ─────────────────────────────────────────────
+if DIST_DIR.exists():
+    # Serve static assets
+    app.mount("/assets", StaticFiles(directory=str(DIST_DIR / "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_frontend(full_path: str, request: Request):
+        # Don't intercept API routes
+        if full_path.startswith(("predict", "metrics", "trust-score", "interventions",
+                                  "review-queue", "resolve", "explain", "replay",
+                                  "simulate", "health", "docs", "openapi", "redoc")):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404)
+        index = DIST_DIR / "index.html"
+        if index.exists():
+            return FileResponse(str(index))
+        return {"error": "Frontend not built"}
+else:
+    logger.warning("Frontend dist not found at %s — API-only mode", DIST_DIR)
+
+
 def get_profiles() -> dict:
-    """Helper used by API endpoints to access loaded profiles."""
     return _app_state.get("profiles", {})

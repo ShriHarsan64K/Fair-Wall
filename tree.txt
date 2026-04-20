@@ -1,0 +1,205 @@
+.
+├── backend
+│   ├── api
+│   │   ├── explain.py
+│   │   ├── __init__.py
+│   │   ├── interventions.py
+│   │   ├── metrics.py
+│   │   ├── predict.py
+│   │   ├── __pycache__
+│   │   │   ├── explain.cpython-312.pyc
+│   │   │   ├── __init__.cpython-312.pyc
+│   │   │   ├── interventions.cpython-312.pyc
+│   │   │   ├── metrics.cpython-312.pyc
+│   │   │   ├── predict.cpython-312.pyc
+│   │   │   ├── replay.cpython-312.pyc
+│   │   │   └── review.cpython-312.pyc
+│   │   ├── replay.py
+│   │   ├── review.py
+│   │   └── simulate.py
+│   ├── core
+│   │   ├── bias_engine.py
+│   │   ├── bigquery_client.py
+│   │   ├── explainer.py
+│   │   ├── firestore_client.py
+│   │   ├── firewall.py
+│   │   ├── gemma_client.py
+│   │   ├── __init__.py
+│   │   ├── in_memory_store.py
+│   │   ├── intervention.py
+│   │   ├── logger.py
+│   │   ├── metrics.py
+│   │   ├── ollama_client.py
+│   │   ├── profile_loader.py
+│   │   ├── __pycache__
+│   │   │   ├── bias_engine.cpython-312.pyc
+│   │   │   ├── bigquery_client.cpython-312.pyc
+│   │   │   ├── explainer.cpython-312.pyc
+│   │   │   ├── firestore_client.cpython-312.pyc
+│   │   │   ├── gemma_client.cpython-312.pyc
+│   │   │   ├── __init__.cpython-312.pyc
+│   │   │   ├── in_memory_store.cpython-312.pyc
+│   │   │   ├── intervention.cpython-312.pyc
+│   │   │   ├── logger.cpython-312.pyc
+│   │   │   ├── metrics.cpython-312.pyc
+│   │   │   ├── ollama_client.cpython-312.pyc
+│   │   │   ├── profile_loader.cpython-312.pyc
+│   │   │   ├── replay_engine.cpython-312.pyc
+│   │   │   ├── router.cpython-312.pyc
+│   │   │   ├── sliding_window.cpython-312.pyc
+│   │   │   ├── tenant_middleware.cpython-312.pyc
+│   │   │   ├── tenant_registry.cpython-312.pyc
+│   │   │   └── trust_score.cpython-312.pyc
+│   │   ├── replay_engine.py
+│   │   ├── router.py
+│   │   ├── sliding_window.py
+│   │   ├── tenant_middleware.py
+│   │   ├── tenant_registry.py
+│   │   ├── trust_score.py
+│   │   └── vertex_client.py
+│   ├── __init__.py
+│   ├── main.py
+│   ├── profiles
+│   │   ├── admissions.yaml
+│   │   ├── healthcare.yaml
+│   │   ├── hiring.yaml
+│   │   └── lending.yaml
+│   ├── prompts
+│   │   ├── admissions.txt
+│   │   ├── healthcare.txt
+│   │   ├── hiring.txt
+│   │   ├── lending.txt
+│   │   └── replay.txt
+│   ├── __pycache__
+│   │   ├── __init__.cpython-312.pyc
+│   │   └── main.cpython-312.pyc
+│   ├── requirements.txt
+│   └── setup
+│       ├── create_tables.py
+│       ├── init_firestore.py
+│       └── __init__.py
+├── bunfig.toml
+├── bun.lockb
+├── components.json
+├── demo
+│   ├── DEMO_SCRIPT.md
+│   ├── generate_dataset.py
+│   ├── __init__.py
+│   └── simulate_bias.py
+├── DEPLOY.md
+├── dist
+│   ├── client
+│   │   ├── assets
+│   │   │   ├── index-CS6PtfDZ.js
+│   │   │   ├── main-rXO6v8N3.js
+│   │   │   └── styles-ggd_us3x.css
+│   │   └── placeholder.svg
+│   └── server
+│       ├── assets
+│       │   ├── index-B445g4RY.js
+│       │   ├── router-2LpJlmdL.js
+│       │   ├── start-HYkvq4Ni.js
+│       │   ├── styles-ggd_us3x.css
+│       │   ├── _tanstack-start-manifest_v-DGIwrVUd.js
+│       │   └── worker-entry-s6T7Mhcm.js
+│       ├── index.js
+│       └── wrangler.json
+├── Dockerfile
+├── eslint.config.js
+├── firebase.json
+├── package.json
+├── public
+│   └── placeholder.svg
+├── README.md
+├── SEGMENTATION.md
+├── segments
+│   ├── segment-1
+│   │   ├── STEPS.md
+│   │   └── SUMMARY.md
+│   ├── segment-2
+│   ├── segment-3
+│   │   ├── STEPS.md
+│   │   └── SUMMARY.md
+│   ├── segment-4
+│   │   ├── STEPS.md
+│   │   └── SUMMARY.md
+│   ├── segment-5
+│   └── segment-6
+├── setup_structure.sh
+├── src
+│   ├── components
+│   │   ├── fairwall
+│   │   │   ├── FairWallDashboard.tsx
+│   │   │   ├── Header.tsx
+│   │   │   ├── InterventionFeed.tsx
+│   │   │   ├── MetricCards.tsx
+│   │   │   ├── ReviewQueue.tsx
+│   │   │   ├── SettingsModal.tsx
+│   │   │   ├── SimulationButton.tsx
+│   │   │   ├── TrustScoreChart.tsx
+│   │   │   ├── TrustScoreGauge.tsx
+│   │   │   └── WhatIfPanel.tsx
+│   │   └── ui
+│   │       ├── accordion.tsx
+│   │       ├── alert-dialog.tsx
+│   │       ├── alert.tsx
+│   │       ├── aspect-ratio.tsx
+│   │       ├── avatar.tsx
+│   │       ├── badge.tsx
+│   │       ├── breadcrumb.tsx
+│   │       ├── button.tsx
+│   │       ├── calendar.tsx
+│   │       ├── card.tsx
+│   │       ├── carousel.tsx
+│   │       ├── chart.tsx
+│   │       ├── checkbox.tsx
+│   │       ├── collapsible.tsx
+│   │       ├── command.tsx
+│   │       ├── context-menu.tsx
+│   │       ├── dialog.tsx
+│   │       ├── drawer.tsx
+│   │       ├── dropdown-menu.tsx
+│   │       ├── form.tsx
+│   │       ├── hover-card.tsx
+│   │       ├── input-otp.tsx
+│   │       ├── input.tsx
+│   │       ├── label.tsx
+│   │       ├── menubar.tsx
+│   │       ├── navigation-menu.tsx
+│   │       ├── pagination.tsx
+│   │       ├── popover.tsx
+│   │       ├── progress.tsx
+│   │       ├── radio-group.tsx
+│   │       ├── resizable.tsx
+│   │       ├── scroll-area.tsx
+│   │       ├── select.tsx
+│   │       ├── separator.tsx
+│   │       ├── sheet.tsx
+│   │       ├── sidebar.tsx
+│   │       ├── skeleton.tsx
+│   │       ├── slider.tsx
+│   │       ├── sonner.tsx
+│   │       ├── switch.tsx
+│   │       ├── table.tsx
+│   │       ├── tabs.tsx
+│   │       ├── textarea.tsx
+│   │       ├── toggle-group.tsx
+│   │       ├── toggle.tsx
+│   │       └── tooltip.tsx
+│   ├── hooks
+│   │   ├── use-fairwall.ts
+│   │   └── use-mobile.tsx
+│   ├── lib
+│   │   └── utils.ts
+│   ├── router.tsx
+│   ├── routes
+│   │   ├── index.tsx
+│   │   └── __root.tsx
+│   ├── routeTree.gen.ts
+│   └── styles.css
+├── tree.txt
+├── tsconfig.json
+├── vite.config.ts
+└── wrangler.jsonc
+
+31 directories, 172 files

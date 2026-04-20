@@ -1,0 +1,14 @@
+venv/
+node_modules/
+.git/
+__pycache__/
+*.pyc
+src/
+public/
+demo/
+segments/
+bun.lockb
+*.md
+.env
+backend/.env
+dist/server/

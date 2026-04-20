@@ -46,8 +46,8 @@ export interface TrustScoreHistory {
 }
 
 function getBaseUrl(): string {
-  if (typeof window === "undefined") return "http://localhost:8000";
-  return localStorage.getItem("fw_api_url") || "http://localhost:8000";
+  if (typeof window === "undefined") return "https://fairwall-api-478571416937.us-central1.run.app";
+  return localStorage.getItem("fw_api_url") || "https://fairwall-api-478571416937.us-central1.run.app";
 }
 
 function getHeaders(): Record<string, string> {

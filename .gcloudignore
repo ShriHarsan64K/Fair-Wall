@@ -1,0 +1,13 @@
+.gcloudignore
+.git/
+node_modules/
+venv/
+src/
+public/
+demo/
+segments/
+dist/server/
+*.md
+.env
+backend/.env
+bun.lockb
